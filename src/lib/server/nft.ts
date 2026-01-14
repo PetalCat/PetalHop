@@ -198,10 +198,14 @@ export async function applyRules(): Promise<void> {
 
     // Apply rules using nft
     const { execSync } = await import('node:child_process');
-    execSync(`nft -f ${configPath}`, { stdio: 'ignore' });
+    execSync(`nft -f ${configPath}`, { stdio: 'pipe' }); // Capture stderr for debugging
 
     console.log('NFTables rules applied successfully');
-  } catch (e) {
+  } catch (e: any) {
+    // Enhance error message with stderr if available
+    if (e.stderr) {
+      console.error('NFTables Failure Stderr:', e.stderr.toString());
+    }
     console.error('Failed to apply NFTables rules:', e);
 
     // Log the failing rules for debugging

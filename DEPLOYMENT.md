@@ -37,10 +37,10 @@ services:
     image: ghcr.io/petalcat/petalhop:latest
     container_name: petalhop-server
     restart: unless-stopped
-    network_mode: host      # Required for port forwarding
-    # ports: - Not needed in host mode
-    #   - "3000:3000"       
-    #   - "51820:51820/udp"
+    # Use standard bridge mode with port mapping
+    ports:
+      - "3000:3000"       # Web UI
+      - "51820:51820/udp" # WireGuard VPN
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -55,9 +55,9 @@ services:
       - SERVER_ENDPOINT=YOUR_VPS_IP:51820
       - DATABASE_URL=file:/app/data/prod.db
       - BODY_SIZE_LIMIT=512M
-    # sysctls: - Not allowed in host mode (enable ip_forward on host instead)
-    #   - net.ipv4.ip_forward=1
-    #   - net.ipv4.conf.all.src_valid_mark=1
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
 ```
 
 Start the service:
@@ -86,14 +86,13 @@ If you prefer `docker run` over `docker-compose`:
 docker run -d \
   --name petalhop-server \
   --restart unless-stopped \
-  --net=host \
-  # -p 3000:3000 \ # Not needed with --net=host
-  # -p 51820:51820/udp \
+  -p 3000:3000 \
+  -p 51820:51820/udp \
   --cap-add=NET_ADMIN \
   --cap-add=NET_RAW \
   --cap-add=SYS_MODULE \
-  # --sysctl net.ipv4.ip_forward=1 \ # Enable on host: sysctl -w net.ipv4.ip_forward=1
-  # --sysctl net.ipv4.conf.all.src_valid_mark=1 \
+  --sysctl net.ipv4.ip_forward=1 \
+  --sysctl net.ipv4.conf.all.src_valid_mark=1 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/wireguard:/etc/wireguard \
   -e ORIGIN="https://hop.yourdomain.com" \
@@ -124,11 +123,12 @@ On the remote machines you want to manage (the "Hosts"):
 Alternatively, manually run the agent container:
 
 ```bash
+```bash
 docker run -d \
   --name petalhop-agent \
   --restart unless-stopped \
   --cap-add=NET_ADMIN \
-  --net=host \
+  -p 51820:51820/udp \
   -e TOKEN="YOUR_INVITE_TOKEN" \
   -e CONTROLLER_URL="https://hop.yourdomain.com" \
   ghcr.io/petalcat/petalhop-agent:latest
