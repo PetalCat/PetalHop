@@ -18,16 +18,9 @@ if (!building) {
     sqlite = new Database(dbPath);
     // Enable WAL mode for concurrency
     sqlite.pragma('journal_mode = WAL');
-} else {
-    // During build, use a mock or don't initialize. 
-    // Typescript might complain if we pass undefined to drizzle, 
-    // but we can cast or use a dummy object if strictly needed.
-    // However, drizzle() requires a valid adapter usually.
-    // Safe bet: cast a dummy object as any to satisfy TS during build.
-    sqlite = {} as any;
 }
 
-export const db = drizzle(sqlite, { schema });
+export const db = !building ? drizzle(sqlite!, { schema }) : ({} as any);
 
 // Run migrations on startup (skip during build)
 if (!building) {
