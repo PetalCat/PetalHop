@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { peers, forwards, appSettings } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateRules } from '$lib/server/nft';
+import { addPeerToInterface } from '$lib/server/wg';
 
 // POST /api/connect - Agent self-registration
 export const POST: RequestHandler = async (event) => {
@@ -38,6 +39,10 @@ export const POST: RequestHandler = async (event) => {
         if (agent.publicKey !== body.publicKey) {
             return json({ error: 'Agent already active with different key' }, { status: 409 });
         }
+        // Sync peer to interface on reconnect
+        if (agent.publicKey) {
+            await addPeerToInterface(agent.publicKey, `${agent.wgIp}/32`);
+        }
     } else {
         // Activate agent
         await db
@@ -51,6 +56,9 @@ export const POST: RequestHandler = async (event) => {
                 // Clearing token prevents reuse by others.
             })
             .where(eq(peers.id, agent.id));
+
+        // Add peer to interface
+        await addPeerToInterface(body.publicKey, `${agent.wgIp}/32`);
     }
 
     // Get forwards for this agent
