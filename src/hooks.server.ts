@@ -25,7 +25,7 @@ import { startMonitoring } from '$lib/server/monitor';
 
 if (!building) {
     applyRules().catch(e => console.error('Startup Rule Application Failed:', e));
-    startMonitoring();
+    // startMonitoring();
 }
 
 export const handle: Handle = async ({ event, resolve }) => {

@@ -203,7 +203,16 @@ export async function applyRules(): Promise<void> {
     console.log('NFTables rules applied successfully');
   } catch (e) {
     console.error('Failed to apply NFTables rules:', e);
-    // Don't throw, just log. We don't want to crash the request if rules fail (e.g. locally on Mac)
+
+    // Log the failing rules for debugging
+    try {
+      const rules = await generateRules();
+      console.error('--- FAILING RULES CONTENT ---');
+      console.error(rules);
+      console.error('-----------------------------');
+    } catch (readErr) {
+      console.error('Could not read rules for debug:', readErr);
+    }
   } finally {
     // Always clean up the temp file
     try {
