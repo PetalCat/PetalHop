@@ -257,7 +257,7 @@ PersistentKeepalive = 25`;
 	}
 
 	function getSetupCommand(token: string) {
-		return `docker run -d --restart=unless-stopped --name=petalhop-agent --cap-add=NET_ADMIN --net=host -e TOKEN=${token} -e CONTROLLER_URL=${controllerUrl} ghcr.io/petalcat/petalhop-agent:latest`;
+		return `docker run -d --restart=unless-stopped --name=petalhop-agent --cap-add=NET_ADMIN -p 51820:51820/udp -e TOKEN=${token} -e CONTROLLER_URL=${controllerUrl} ghcr.io/petalcat/petalhop-agent:latest\n# Note: Add -p <host>:<container> for any forwarded ports`;
 	}
 
 	async function copyCommand() {
