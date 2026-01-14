@@ -186,6 +186,12 @@ label {
 	box-shadow: var(--shadow-sm);
 }
 
+.table-container {
+	width: 100%;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
 /* Tables */
 table {
 	width: 100%;

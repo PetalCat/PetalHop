@@ -54,6 +54,27 @@ export const forwards = sqliteTable('forwards', {
 	privatePort: integer('private_port').notNull()
 });
 
+// Usage stats
+export const peerUsageHourly = sqliteTable('peer_usage_hourly', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	peerId: integer('peer_id')
+		.notNull()
+		.references(() => peers.id, { onDelete: 'cascade' }),
+	timestamp: integer('timestamp').notNull(), // Unix timestamp of the hour start
+	rx: integer('rx').notNull(), // Bytes received in this hour
+	tx: integer('tx').notNull() // Bytes sent in this hour
+});
+
+export const peerUsageMonthly = sqliteTable('peer_usage_monthly', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	peerId: integer('peer_id')
+		.notNull()
+		.references(() => peers.id, { onDelete: 'cascade' }),
+	month: text('month').notNull(), // YYYY-MM
+	rx: integer('rx').notNull(), // Bytes received in this month
+	tx: integer('tx').notNull() // Bytes sent in this month
+});
+
 // ============ Type Exports ============
 
 export type User = typeof users.$inferSelect;
@@ -63,3 +84,5 @@ export type Peer = typeof peers.$inferSelect;
 export type NewPeer = typeof peers.$inferInsert;
 export type Forward = typeof forwards.$inferSelect;
 export type NewForward = typeof forwards.$inferInsert;
+export type PeerUsageHourly = typeof peerUsageHourly.$inferSelect;
+export type PeerUsageMonthly = typeof peerUsageMonthly.$inferSelect;

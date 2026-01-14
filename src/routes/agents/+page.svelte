@@ -460,10 +460,14 @@ PersistentKeepalive = 25`;
 										{/if}
 									{/if}
 								</td>
-								<td>{agent.name}</td>
+								<td>
+									<a href="/agents/{agent.id}" class="text-primary font-medium hover:underline">
+										{agent.name}
+									</a>
+								</td>
 								<td><code>{agent.wgIp}</code></td>
 								<td>
-									<div class="flex max-w-[200px] min-w-[140px] flex-col gap-1">
+									<div class="flex w-36 flex-col gap-1">
 										<div class="flex justify-between font-mono text-[10px]">
 											<span class="text-emerald-500"
 												>↓ {formatBytes(statsHistory[agent.id]?.at(-1)?.rxSpeed || 0)}</span

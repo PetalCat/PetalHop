@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { db } from '$lib/server/db';
-import { peers, appSettings } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { peers, appSettings, peerUsageHourly, peerUsageMonthly } from '$lib/server/db/schema';
+import { eq, sql } from 'drizzle-orm';
 import { EventEmitter } from 'events';
 
 // Types
@@ -21,8 +21,17 @@ let lastStatusMap = new Map<number, boolean>(); // ID -> online/offline
 let webhookUrl: string | null = null;
 let lastConfigUpdate = 0;
 
+// Persistence State
+// Track the LAST TOTAL seen from WG to calculate Deltas
+let lastRawStats = new Map<number, { rx: number, tx: number }>();
+
+// Accumulate Deltas to flush to DB
+let pendingUsage = new Map<number, { rx: number, tx: number }>();
+let lastFlushTime = Date.now();
+
 // Config
 const OFFLINE_THRESHOLD_SEC = 180; // 3 minutes
+const FLUSH_INTERVAL_MS = 60000; // 1 minute
 
 export function startMonitoring() {
     if (monitorInterval) return; // Already running
@@ -90,18 +99,43 @@ async function tick() {
             const timeSinceHandshake = nowSec - handshake;
             const isOnline = timeSinceHandshake < OFFLINE_THRESHOLD_SEC;
 
+            // --- Persistence Logic ---
+            let deltaRx = 0;
+            let deltaTx = 0;
+
+            const prev = lastRawStats.get(peer.id);
+            if (prev) {
+                // If current total >= previous total, it's a valid increment
+                if (rx >= prev.rx) deltaRx = rx - prev.rx;
+                // If current total < previous, WG restarted or counters reset. 
+                // We treat 'rx' as the delta (assuming it started from 0)
+                else deltaRx = rx;
+
+                if (tx >= prev.tx) deltaTx = tx - prev.tx;
+                else deltaTx = tx;
+            } else {
+                // First time seeing this peer in this session.
+                // We can't know the delta since we don't know start time.
+                // Assume 0 delta to avoid massive spikes on service restart.
+                deltaRx = 0;
+                deltaTx = 0;
+            }
+
+            // Update Last Raw
+            lastRawStats.set(peer.id, { rx, tx });
+
+            // Accumulate Pending
+            const pending = pendingUsage.get(peer.id) || { rx: 0, tx: 0 };
+            pendingUsage.set(peer.id, {
+                rx: pending.rx + deltaRx,
+                tx: pending.tx + deltaTx
+            });
+            // --------------------------
+
             currentStats[peer.id] = { rx, tx, handshake, online: isOnline };
 
             // Check Status Change
             const lastOnline = lastStatusMap.get(peer.id) ?? false;
-
-            // Logic: Only trigger if state truly changed. 
-            // Note: Handshake time only updates when handshake occurs. 
-            // If handshake is old, it stays old. isOnline becomes false.
-
-            // To prevent "flapping" on startup, we might want to seed lastStatusMap first?
-            // Or just assume offline at start? 
-            // Let's rely on map having key.
 
             if (lastStatusMap.has(peer.id) && lastOnline !== isOnline) {
                 console.log(`Peer ${peer.name} (${peer.id}) changed state: ${lastOnline ? 'Online' : 'Offline'} -> ${isOnline ? 'Online' : 'Offline'}`);
@@ -112,8 +146,85 @@ async function tick() {
         }
     }
 
+    // Flush to DB
+    if (now - lastFlushTime > FLUSH_INTERVAL_MS) {
+        await flushStats();
+        lastFlushTime = now;
+    }
+
     // Emit for SSE
     statsEmitter.emit('stats', currentStats);
+}
+
+async function flushStats() {
+    if (pendingUsage.size === 0) return;
+
+    console.log(`Flushing stats for ${pendingUsage.size} peers...`);
+    const entries = Array.from(pendingUsage.entries());
+
+    // Reset pending immediately so new ticks can accumulate
+    pendingUsage.clear();
+
+    const now = new Date();
+    const currentHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours()).getTime() / 1000;
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    for (const [peerId, stats] of entries) {
+        if (stats.rx === 0 && stats.tx === 0) continue;
+
+        try {
+            // 1. Initial Insert or Update Hourly
+            // Note: SQLite upsert matching on a unique constraint is ideal.
+            // But we didn't define unique constraint on (peerId, timestamp) in Drizzle schema explicitly via indexes yet.
+            // However, we can construct the query to aggregate manually or use simple insert for now.
+            // Let's assume we need to handle duplicates.
+
+            // Check if row exists
+            const existingHourly = await db.select().from(peerUsageHourly)
+                .where(sql`${peerUsageHourly.peerId} = ${peerId} AND ${peerUsageHourly.timestamp} = ${currentHour}`)
+                .limit(1);
+
+            if (existingHourly.length > 0) {
+                await db.update(peerUsageHourly)
+                    .set({
+                        rx: existingHourly[0].rx + stats.rx,
+                        tx: existingHourly[0].tx + stats.tx
+                    })
+                    .where(eq(peerUsageHourly.id, existingHourly[0].id));
+            } else {
+                await db.insert(peerUsageHourly).values({
+                    peerId,
+                    timestamp: currentHour,
+                    rx: stats.rx,
+                    tx: stats.tx
+                });
+            }
+
+            // 2. Monthly
+            const existingMonthly = await db.select().from(peerUsageMonthly)
+                .where(sql`${peerUsageMonthly.peerId} = ${peerId} AND ${peerUsageMonthly.month} = ${currentMonth}`)
+                .limit(1);
+
+            if (existingMonthly.length > 0) {
+                await db.update(peerUsageMonthly)
+                    .set({
+                        rx: existingMonthly[0].rx + stats.rx,
+                        tx: existingMonthly[0].tx + stats.tx
+                    })
+                    .where(eq(peerUsageMonthly.id, existingMonthly[0].id));
+            } else {
+                await db.insert(peerUsageMonthly).values({
+                    peerId,
+                    month: currentMonth,
+                    rx: stats.rx,
+                    tx: stats.tx
+                });
+            }
+
+        } catch (e) {
+            console.error(`Failed to flush stats for peer ${peerId}:`, e);
+        }
+    }
 }
 
 async function sendWebhook(peerName: string, isOnline: boolean) {
