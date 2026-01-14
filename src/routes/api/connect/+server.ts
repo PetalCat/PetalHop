@@ -14,11 +14,20 @@ export const POST: RequestHandler = async (event) => {
     }
 
     // Find pending agent by token
-    const [agent] = await db
+    let [agent] = await db
         .select()
         .from(peers)
         .where(eq(peers.setupToken, body.token))
         .limit(1);
+
+    // Fallback: If not found by token, try to find by publicKey (reconnection)
+    if (!agent) {
+        [agent] = await db
+            .select()
+            .from(peers)
+            .where(eq(peers.publicKey, body.publicKey))
+            .limit(1);
+    }
 
     if (!agent) {
         return json({ error: 'Invalid or expired token' }, { status: 401 });
@@ -61,8 +70,10 @@ export const POST: RequestHandler = async (event) => {
     }
 
     // Return config
+    console.log('Connect hit for agent:', agent.id);
     return json({
         success: true,
+        agent_id: String(agent.id),
         wgIp: agent.wgIp,
         // In a real scenario, we might return the server's public key here too if stored in settings
         serverPublicKey,
