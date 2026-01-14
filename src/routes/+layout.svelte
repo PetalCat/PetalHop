@@ -3,7 +3,27 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import Notifications from '$lib/components/Notifications.svelte';
 
+	import { onMount } from 'svelte';
+
 	let { children } = $props();
+
+	let theme = $state('dark');
+
+	onMount(() => {
+		const stored = localStorage.getItem('theme');
+		if (stored) {
+			theme = stored;
+		} else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+			theme = 'light';
+		}
+		document.documentElement.dataset.theme = theme;
+	});
+
+	function toggleTheme() {
+		theme = theme === 'dark' ? 'light' : 'dark';
+		document.documentElement.dataset.theme = theme;
+		localStorage.setItem('theme', theme);
+	}
 
 	const navItems = [
 		{ href: '/', label: 'Dashboard', icon: '📊' },
@@ -41,6 +61,9 @@
 		</nav>
 
 		<div class="sidebar-footer">
+			<button class="theme-toggle" onclick={toggleTheme} title="Toggle Theme">
+				{theme === 'dark' ? '🌙' : '☀️'}
+			</button>
 			<span class="version">v0.1.0</span>
 		</div>
 	</aside>
@@ -129,6 +152,22 @@
 	.version {
 		font-size: 0.75rem;
 		color: var(--color-text-muted);
+	}
+
+	.theme-toggle {
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0.5rem;
+		border-radius: var(--radius-md);
+		margin-bottom: 0.5rem;
+		display: block;
+		width: 100%;
+		transition: background 0.15s ease;
+	}
+
+	.theme-toggle:hover {
+		background: var(--color-bg-card);
 	}
 
 	.main-content {

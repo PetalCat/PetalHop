@@ -1,8 +1,85 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
+	import type { PageData } from './$types';
+	import { enhance } from '$app/forms';
+	import { fade, slide } from 'svelte/transition';
+	import TrafficGraph from '$lib/components/TrafficGraph.svelte';
 	import { showConfirm, showToast } from '$lib/components/Notifications.svelte';
 	import QRCode from 'qrcode';
 
+	let { data } = $props();
+	let { peers: initialPeers } = data;
+
+	let peers = $state(initialPeers);
+
+	// Stats StateState
+	interface PeerStats {
+		rx: number; // total bytes
+		tx: number; // total bytes
+		handshake: number;
+		online: boolean;
+	}
+
+	interface TrafficPoint {
+		time: number;
+		rxSpeed: number;
+		txSpeed: number;
+	}
+
+	let statsHistory = $state<Record<number, TrafficPoint[]>>({});
+	let lastStats = $state<Record<number, PeerStats>>({});
+	let evSource: EventSource | null = null;
+
+	// Helper to format bytes
+	function formatBytes(bytes: number) {
+		if (bytes === 0) return '0 B/s';
+		const k = 1024;
+		const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+		const i = Math.floor(Math.log(bytes) / Math.log(k));
+		return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+	}
+
+	onMount(() => {
+		// Start Stats Stream
+		evSource = new EventSource('/api/stats/stream');
+
+		evSource.onmessage = (event) => {
+			const now = Date.now();
+			const data = JSON.parse(event.data);
+
+			// data is { peerId: { rx, tx, handshake } }
+			for (const [idStr, stat] of Object.entries(data)) {
+				const id = Number(idStr);
+				const prev = lastStats[id];
+				const current = stat as PeerStats;
+
+				let rxSpeed = 0;
+				let txSpeed = 0;
+
+				if (prev) {
+					// Calculate speed (assumes ~1s interval)
+					rxSpeed = Math.max(0, current.rx - prev.rx);
+					txSpeed = Math.max(0, current.tx - prev.tx);
+				}
+
+				// Update History
+				if (!statsHistory[id]) statsHistory[id] = [];
+				statsHistory[id].push({ time: now, rxSpeed, txSpeed });
+
+				// Keep last 60 points
+				if (statsHistory[id].length > 60) {
+					statsHistory[id].shift();
+				}
+
+				// Update Last Stats
+				lastStats[id] = current;
+			}
+		};
+	});
+
+	onDestroy(() => {
+		if (evSource) evSource.close();
+	});
 	interface Agent {
 		id: number;
 		name: string;
@@ -349,6 +426,7 @@ PersistentKeepalive = 25`;
 							<th>Status</th>
 							<th>Name</th>
 							<th>IP</th>
+							<th>Traffic (Rx/Tx)</th>
 							<th>Public Key</th>
 							<th>Actions</th>
 						</tr>
@@ -357,12 +435,50 @@ PersistentKeepalive = 25`;
 						{#each agentList as agent}
 							<tr>
 								<td>
-									<span class="status-badge {agent.status}">
-										{agent.status === 'active' ? '● Active' : '○ Pending'}
-									</span>
+									{#if agent.status === 'pending'}
+										<span class="status-badge pending">○ Pending</span>
+									{:else}
+										{@const stats = lastStats[agent.id]}
+										{#if stats?.online}
+											<span
+												class="status-badge active"
+												title="Last handshake: {Math.floor(
+													(Date.now() - stats.handshake * 1000) / 1000
+												)}s ago"
+											>
+												● Online
+											</span>
+										{:else}
+											<span
+												class="status-badge offline"
+												title="Last handshake: {stats?.handshake
+													? new Date(stats.handshake * 1000).toLocaleString()
+													: 'Never'}"
+											>
+												● Offline
+											</span>
+										{/if}
+									{/if}
 								</td>
 								<td>{agent.name}</td>
 								<td><code>{agent.wgIp}</code></td>
+								<td>
+									<div class="flex max-w-[200px] min-w-[140px] flex-col gap-1">
+										<div class="flex justify-between font-mono text-[10px]">
+											<span class="text-emerald-500"
+												>↓ {formatBytes(statsHistory[agent.id]?.at(-1)?.rxSpeed || 0)}</span
+											>
+											<span class="text-blue-500"
+												>↑ {formatBytes(statsHistory[agent.id]?.at(-1)?.txSpeed || 0)}</span
+											>
+										</div>
+										<div
+											class="bg-base-200/50 border-base-300 h-8 w-full overflow-hidden rounded border"
+										>
+											<TrafficGraph data={statsHistory[agent.id] || []} height={32} />
+										</div>
+									</div>
+								</td>
 								<td>
 									{#if agent.publicKey}
 										<code class="key-preview" title={agent.publicKey}>
@@ -786,5 +902,21 @@ PersistentKeepalive = 25`;
 
 	.uppercase {
 		text-transform: uppercase;
+	}
+
+	.status-badge.active {
+		background: oklch(0.95 0.05 150);
+		color: oklch(0.4 0.1 150);
+	}
+
+	.status-badge.offline {
+		background: oklch(0.95 0.05 0);
+		color: oklch(0.4 0.1 0);
+	}
+
+	.status-badge.pending {
+		background: var(--color-bg-card);
+		color: var(--color-text-muted);
+		border: 1px dashed var(--color-border);
 	}
 </style>

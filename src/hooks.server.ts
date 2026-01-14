@@ -7,8 +7,11 @@ const PUBLIC_ROUTES = ['/login', '/api/auth/login', '/api/auth/signup', '/api/co
 import { building } from '$app/environment';
 import { applyRules } from '$lib/server/nft';
 
+import { startMonitoring } from '$lib/server/monitor';
+
 if (!building) {
     applyRules().catch(e => console.error('Startup Rule Application Failed:', e));
+    startMonitoring();
 }
 
 export const handle: Handle = async ({ event, resolve }) => {

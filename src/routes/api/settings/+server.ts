@@ -71,5 +71,16 @@ export const POST: RequestHandler = async (event) => {
             });
     }
 
+    // Update matrix_webhook_url
+    if (typeof body.matrixWebhookUrl === 'string') {
+        await db
+            .insert(appSettings)
+            .values({ key: 'matrix_webhook_url', value: body.matrixWebhookUrl })
+            .onConflictDoUpdate({
+                target: appSettings.key,
+                set: { value: body.matrixWebhookUrl }
+            });
+    }
+
     return json({ success: true });
 };

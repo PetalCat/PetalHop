@@ -17,6 +17,7 @@ export const GET: RequestHandler = async (event) => {
     let controllerUrl = '';
     let serverPublicKey = '';
     let serverEndpoint = '';
+    let matrixWebhookUrl = '';
 
     if (event.locals.user.isAdmin) {
         const settings = await db.select().from(appSettings);
@@ -31,6 +32,8 @@ export const GET: RequestHandler = async (event) => {
                 serverPublicKey = setting.value;
             } else if (setting.key === 'server_endpoint') {
                 serverEndpoint = setting.value;
+            } else if (setting.key === 'matrix_webhook_url') {
+                matrixWebhookUrl = setting.value;
             }
         }
 
@@ -47,6 +50,8 @@ export const GET: RequestHandler = async (event) => {
         }
     }
 
+
+
     return json({
         user: {
             id: event.locals.user.id,
@@ -58,6 +63,7 @@ export const GET: RequestHandler = async (event) => {
         mfaRequired,
         controllerUrl,
         serverPublicKey,
-        serverEndpoint
+        serverEndpoint,
+        matrixWebhookUrl // Exposed to admin
     });
 };

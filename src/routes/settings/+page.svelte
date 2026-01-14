@@ -14,6 +14,7 @@
 	let controllerUrlInput = $state('');
 	let serverPublicKeyInput = $state('');
 	let serverEndpointInput = $state('');
+	let matrixWebhookInput = $state('');
 	let loading = $state(true);
 	let error = $state('');
 
@@ -62,6 +63,7 @@
 				controllerUrlInput = data.controllerUrl || window.location.origin;
 				serverPublicKeyInput = data.serverPublicKey || '';
 				serverEndpointInput = data.serverEndpoint || '';
+				matrixWebhookInput = data.matrixWebhookUrl || '';
 			} else {
 				if (res.status === 401) {
 					window.location.href = '/login';
@@ -122,6 +124,15 @@
 			})
 		});
 		showToast('Server config saved', 'success');
+	}
+
+	async function saveMatrixWebhook() {
+		await fetch('/api/settings', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ matrixWebhookUrl: matrixWebhookInput })
+		});
+		showToast('Webhook URL saved', 'success');
 	}
 
 	async function logout() {
@@ -394,6 +405,28 @@
 							<button class="btn btn-sm btn-ghost self-end" onclick={saveServerConfig}>
 								Save
 							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- Notifications Section -->
+				<div class="card mt-6">
+					<h2>Notifications</h2>
+					<div class="setting-item-col">
+						<div class="setting-info">
+							<span class="setting-label">Matrix Webhook URL</span>
+							<span class="setting-description">
+								Send alerts to Matrix/Element when agents go offline.
+							</span>
+						</div>
+						<div class="url-input-group">
+							<input
+								type="text"
+								placeholder="https://matrix.example.com/_matrix/..."
+								bind:value={matrixWebhookInput}
+								onblur={saveMatrixWebhook}
+							/>
+							<button class="btn btn-sm btn-ghost" onclick={saveMatrixWebhook}> Save </button>
 						</div>
 					</div>
 				</div>
