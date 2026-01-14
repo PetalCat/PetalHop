@@ -25,9 +25,29 @@
 	let mfaError = $state('');
 	let mfaLoading = $state(false);
 
+	// WireGuard Status
+	let wgStatus = $state('checking');
+	let wgPeerCount = $state(0);
+
 	onMount(async () => {
 		await loadSettings();
+		await fetchWgStatus();
 	});
+
+	async function fetchWgStatus() {
+		try {
+			const res = await fetch('/api/settings/wg-status');
+			if (res.ok) {
+				const data = await res.json();
+				wgStatus = data.status;
+				wgPeerCount = data.peerCount || 0;
+			} else {
+				wgStatus = 'error';
+			}
+		} catch (e) {
+			wgStatus = 'error';
+		}
+	}
 
 	async function loadSettings() {
 		loading = true;
@@ -327,7 +347,16 @@
 
 					<div class="setting-item-col">
 						<div class="setting-info">
-							<span class="setting-label">Server WireGuard Configuration</span>
+							<span class="setting-label flex items-center gap-2">
+								Server WireGuard Configuration
+								{#if wgStatus === 'up'}
+									<span class="badge badge-success">UP ({wgPeerCount} peers)</span>
+								{:else if wgStatus === 'down'}
+									<span class="badge badge-danger">DOWN</span>
+								{:else if wgStatus === 'checking'}
+									<span class="badge badge-warning">Checking...</span>
+								{/if}
+							</span>
 							<span class="setting-description">
 								Helper configuration sent to agents to auto-connect.
 							</span>

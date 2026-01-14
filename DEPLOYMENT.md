@@ -65,6 +65,18 @@ Start the service:
 docker compose up -d
 ```
 
+### 3.2 Post-Deployment Setup (Critical)
+
+Before connecting any agents, you must configure the server's WireGuard settings:
+1.  **Log in** to your PetalHop Dashboard (`https://hop.yourdomain.com`).
+2.  Go to **Settings**.
+3.  Scroll to **Server WireGuard Configuration**.
+4.  Enter your **Server Public Key** (you can click "Detect" if WireGuard is running, or generate one).
+5.  Enter your **Server Endpoint** (e.g., `YOUR_VPS_IP:51820`).
+6.  Click **Save**.
+
+*Note: Without this, agents will fail to connect with a "Configuration parsing error".*
+
 ### Alternative: Docker Run (One-Liner)
 
 If you prefer `docker run` over `docker-compose`:
