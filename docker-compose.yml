@@ -1,0 +1,23 @@
+services:
+  petalhop:
+    build: .
+    container_name: petalhop-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Web UI
+      - "51820:51820/udp" # WireGuard VPN
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_MODULE
+    volumes:
+      - ./data:/app/data # Persist SQLite Database
+      - ./wireguard:/etc/wireguard # Persist WireGuard Config
+    environment:
+      - DATABASE_URL=file:/app/data/local.db
+      - ORIGIN=https://testhop.petalcat.dev # Updated to your domain
+      - SERVER_ENDPOINT=localhost:51820 # Dev flag for local testing
+      - BODY_SIZE_LIMIT=512M
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
