@@ -14,10 +14,10 @@ if (!TOKEN || !CONTROLLER_URL) {
 }
 
 // Helper to run shell commands
-function run(cmd) {
+function run(/** @type {string} */ cmd) {
     try {
         return execSync(cmd, { encoding: 'utf8' }).trim();
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
         console.error(`Command failed: ${cmd}`, e.message);
         throw e;
     }
@@ -111,26 +111,9 @@ PersistentKeepalive = 25
     // 5. Control Loop / Heartbeat
     console.log('进入 Control Loop (Heartbeats not implemented yet, just keeping alive)');
 
-    // 6. Start a simple test HTTP server on port 8080
-    const http = await import('node:http');
-    const testServer = http.createServer((req, res) => {
-        console.log(`[HTTP] ${req.method} ${req.url} from ${req.socket.remoteAddress}`);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            message: '🌸 Hello from PetalHop Agent!',
-            agentIp: config.wgIp,
-            timestamp: new Date().toISOString(),
-            path: req.url
-        }));
-    });
-    testServer.listen(8080, '0.0.0.0', () => {
-        console.log('🌐 Test HTTP server listening on port 8080');
-    });
-
     // Handle cleanup
     const cleanup = () => {
         console.log('Shutting down...');
-        testServer.close();
         try { run('wg-quick down wg0'); } catch (e) { }
         process.exit(0);
     };
