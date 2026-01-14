@@ -145,6 +145,13 @@ h2 {
 	font-size: 0.8125rem;
 }
 
+.btn-xs {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1;
+    min-height: 1.5rem;
+}
+
 /* Form elements */
 input,
 select {
@@ -298,6 +305,10 @@ code {
 
 .text-muted {
 	color: var(--color-text-muted);
+}
+
+.text-danger {
+    color: var(--color-danger);
 }
 
 .text-sm {

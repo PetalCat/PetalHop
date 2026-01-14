@@ -417,99 +417,78 @@ PersistentKeepalive = 25`;
 
 	<!-- Agents Section -->
 	{#if agentList.length > 0}
-		<div class="card mb-6">
-			<h2>🤖 Agents</h2>
-			<div class="table-container">
-				<table>
-					<thead>
-						<tr>
-							<th>Status</th>
-							<th>Name</th>
-							<th>IP</th>
-							<th>Traffic (Rx/Tx)</th>
-							<th>Public Key</th>
-							<th>Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each agentList as agent}
-							<tr>
-								<td>
-									{#if agent.status === 'pending'}
-										<span class="status-badge pending">○ Pending</span>
-									{:else}
-										{@const stats = lastStats[agent.id]}
-										{#if stats?.online}
-											<span
-												class="status-badge active"
-												title="Last handshake: {Math.floor(
-													(Date.now() - stats.handshake * 1000) / 1000
-												)}s ago"
-											>
-												● Online
-											</span>
-										{:else}
-											<span
-												class="status-badge offline"
-												title="Last handshake: {stats?.handshake
-													? new Date(stats.handshake * 1000).toLocaleString()
-													: 'Never'}"
-											>
-												● Offline
-											</span>
-										{/if}
-									{/if}
-								</td>
-								<td>
-									<a href="/agents/{agent.id}" class="text-primary font-medium hover:underline">
-										{agent.name}
-									</a>
-								</td>
-								<td><code>{agent.wgIp}</code></td>
-								<td>
-									<div class="flex w-36 flex-col gap-1">
-										<div class="flex justify-between font-mono text-[10px]">
-											<span class="text-emerald-500"
-												>↓ {formatBytes(statsHistory[agent.id]?.at(-1)?.rxSpeed || 0)}</span
-											>
-											<span class="text-blue-500"
-												>↑ {formatBytes(statsHistory[agent.id]?.at(-1)?.txSpeed || 0)}</span
-											>
-										</div>
-										<div
-											class="bg-base-200/50 border-base-300 h-8 w-full overflow-hidden rounded border"
-										>
-											<TrafficGraph data={statsHistory[agent.id] || []} height={32} />
-										</div>
-									</div>
-								</td>
-								<td>
-									{#if agent.publicKey}
-										<code class="key-preview" title={agent.publicKey}>
-											{agent.publicKey.slice(0, 8)}...
-										</code>
-									{:else}
-										<span class="text-muted">-</span>
-									{/if}
-								</td>
-								<td>
-									<div class="flex gap-2">
-										<button
-											class="btn btn-secondary btn-sm"
-											onclick={() => openPortsModal(agent.id)}
-										>
-											Ports
-										</button>
-										<button class="btn btn-danger btn-sm" onclick={() => deleteAgent(agent.id)}>
-											Delete
-										</button>
-									</div>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
+		<h2 class="section-title mb-4">🤖 Agents</h2>
+		<div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+			{#each agentList as agent}
+				{@const stats = lastStats[agent.id]}
+				<div class="card agent-card">
+					<!-- Header -->
+					<div class="mb-4 flex items-start justify-between">
+						<div>
+							<a
+								href="/agents/{agent.id}"
+								class="hover:text-primary text-lg font-bold transition-colors"
+							>
+								{agent.name}
+							</a>
+							<div class="text-muted mt-1 font-mono text-xs">{agent.wgIp}</div>
+						</div>
+
+						{#if agent.status === 'pending'}
+							<span class="status-badge pending">Pending</span>
+						{:else if stats?.online}
+							<span
+								class="status-badge active"
+								title="Handshake: {Math.floor((Date.now() - stats.handshake * 1000) / 1000)}s ago"
+							>
+								Online
+							</span>
+						{:else}
+							<span class="status-badge offline">Offline</span>
+						{/if}
+					</div>
+
+					<!-- Traffic Graph -->
+					<div class="mt-auto">
+						<div class="mb-1 flex justify-between font-mono text-[10px]">
+							<span class="text-emerald-500"
+								>↓ {formatBytes(statsHistory[agent.id]?.at(-1)?.rxSpeed || 0)}</span
+							>
+							<span class="text-blue-500"
+								>↑ {formatBytes(statsHistory[agent.id]?.at(-1)?.txSpeed || 0)}</span
+							>
+						</div>
+						<div
+							class="bg-base-200/50 border-base-300 mb-4 h-10 w-full overflow-hidden rounded border"
+						>
+							<TrafficGraph data={statsHistory[agent.id] || []} height={40} />
+						</div>
+					</div>
+
+					<!-- Footer / Actions -->
+					<div class="border-border mt-2 flex items-center justify-between border-t pt-3">
+						{#if agent.publicKey}
+							<code class="text-muted text-xs" title={agent.publicKey}>
+								{agent.publicKey.slice(0, 12)}...
+							</code>
+						{:else}
+							<span></span>
+						{/if}
+
+						<div class="flex gap-2">
+							<button class="btn btn-ghost btn-xs" onclick={() => openPortsModal(agent.id)}>
+								Ports
+							</button>
+							<button
+								class="btn btn-ghost btn-xs text-danger hover:bg-danger/10"
+								onclick={() => deleteAgent(agent.id)}
+							>
+								Delete
+							</button>
+						</div>
+					</div>
+				</div>
+			{/each}
 		</div>
 	{/if}
 
