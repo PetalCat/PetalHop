@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { forwards, peers } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
+import { applyRules } from '$lib/server/nft';
 
 // GET /api/forwards - List all forwards with peer info
 export const GET: RequestHandler = async () => {
@@ -48,6 +49,8 @@ export const POST: RequestHandler = async ({ request }) => {
             })
             .returning();
 
+        await applyRules();
+
         return json(newForward, { status: 201 });
     } catch (error) {
         if (error instanceof Error && error.message.includes('UNIQUE')) {
@@ -72,5 +75,6 @@ export const DELETE: RequestHandler = async ({ request }) => {
     }
 
     await db.delete(forwards).where(eq(forwards.id, body.id));
+    await applyRules();
     return json({ ok: true });
 };

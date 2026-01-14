@@ -4,6 +4,13 @@ import { validateSessionToken } from '$lib/server/auth';
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = ['/login', '/api/auth/login', '/api/auth/signup', '/api/connect', '/setup', '/api/agent-source'];
 
+import { building } from '$app/environment';
+import { applyRules } from '$lib/server/nft';
+
+if (!building) {
+    applyRules().catch(e => console.error('Startup Rule Application Failed:', e));
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
     // Get session token from cookie
     const token = event.cookies.get('session');
