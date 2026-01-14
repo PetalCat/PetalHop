@@ -113,9 +113,13 @@ export async function generateRules(): Promise<string> {
 # Only explicitly forwarded ports are accessible.
 # Direct connections from VPS to agents are BLOCKED.
 
-flush ruleset
+# Create or reset our tables (using add + flush pattern)
+add table ip petalhop_nat
+flush table ip petalhop_nat
+add table ip petalhop_filter
+flush table ip petalhop_filter
 
-table ip nat {
+table ip petalhop_nat {
   chain prerouting {
     type nat hook prerouting priority dstnat; policy accept;
 ${preroutingRules}
@@ -128,22 +132,15 @@ ${preroutingRules}
   }
 }
 
-table ip filter {
-  chain input {
-    type filter hook input priority filter; policy accept;
-    # Allow established connections
-    ct state established,related accept
-    # Allow loopback
-    iif "lo" accept
-    # Allow WireGuard UDP
-    udp dport 51820 accept
-  }
-
+table ip petalhop_filter {
   chain forward {
     type filter hook forward priority filter; policy drop;
 
     # Allow established/related connections (return traffic)
     ct state established,related accept
+
+    # Allow traffic NOT destined for WireGuard network (don't interfere with other traffic)
+    ip daddr != 10.8.0.0/24 accept
 
     # Only allow forwarded traffic to specific agent:port combinations
     # These are the ONLY paths into the WireGuard network
@@ -162,6 +159,9 @@ ${forwardAllowRules}
 
     # Allow loopback
     oif "lo" accept
+
+    # Allow traffic NOT destined for WireGuard network
+    ip daddr != 10.8.0.0/24 accept
 
     # Allow WireGuard protocol itself (UDP to agents)
     udp dport 51820 accept
