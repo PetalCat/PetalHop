@@ -9,6 +9,16 @@ if (!building && !env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
 
 const client = createClient({ url: env.DATABASE_URL || 'file:local.db' });
 
+// Enable WAL mode for better concurrency
+if ((env.DATABASE_URL || 'file:local.db').startsWith('file:')) {
+    try {
+        await client.execute('PRAGMA journal_mode = WAL');
+        await client.execute('PRAGMA synchronous = NORMAL');
+    } catch (e) {
+        console.warn('Failed to enable WAL mode:', e);
+    }
+}
+
 export const db = drizzle(client, { schema });
 
 // Run migrations on startup (skip during build)
