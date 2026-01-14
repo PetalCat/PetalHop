@@ -8,6 +8,7 @@ export const users = sqliteTable('users', {
 	email: text('email').notNull().unique(),
 	passwordHash: text('password_hash').notNull(),
 	mfaSecret: text('mfa_secret'), // TOTP secret, null if MFA not set up
+	mfaBackupCodes: text('mfa_backup_codes'), // JSON array of hashed backup codes
 	mfaEnabled: integer('mfa_enabled', { mode: 'boolean' }).notNull().default(false),
 	isAdmin: integer('is_admin', { mode: 'boolean' }).notNull().default(false),
 	createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date())
@@ -75,6 +76,21 @@ export const peerUsageMonthly = sqliteTable('peer_usage_monthly', {
 	tx: integer('tx').notNull() // Bytes sent in this month
 });
 
+// ============ Audit Logging ============
+
+export const auditLogs = sqliteTable('audit_logs', {
+	id: integer('id').primaryKey({ autoIncrement: true }),
+	timestamp: integer('timestamp', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+	userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+	action: text('action').notNull(), // e.g., 'user.login', 'agent.create', 'settings.update'
+	resourceType: text('resource_type'), // e.g., 'user', 'agent', 'forward'
+	resourceId: text('resource_id'), // ID of the affected resource
+	ipAddress: text('ip_address'),
+	userAgent: text('user_agent'),
+	details: text('details'), // JSON string with additional details
+	success: integer('success', { mode: 'boolean' }).notNull().default(true)
+});
+
 // ============ Type Exports ============
 
 export type User = typeof users.$inferSelect;
@@ -86,3 +102,4 @@ export type Forward = typeof forwards.$inferSelect;
 export type NewForward = typeof forwards.$inferInsert;
 export type PeerUsageHourly = typeof peerUsageHourly.$inferSelect;
 export type PeerUsageMonthly = typeof peerUsageMonthly.$inferSelect;
+export type AuditLog = typeof auditLogs.$inferSelect;

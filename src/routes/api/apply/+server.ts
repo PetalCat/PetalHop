@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { applyRules } from '$lib/server/nft';
+import { applyRules, generateRules } from '$lib/server/nft';
 const RULES_PATH = '/etc/wg-ingress/rules.nft';
 
 // POST /api/apply - Generate and apply nftables rules

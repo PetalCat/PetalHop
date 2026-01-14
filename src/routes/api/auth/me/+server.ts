@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { appSettings } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
 import { eq } from 'drizzle-orm';
+import { safeDecrypt } from '$lib/server/crypto';
 
 // GET /api/auth/me - Get current user and settings
 export const GET: RequestHandler = async (event) => {
@@ -33,7 +34,8 @@ export const GET: RequestHandler = async (event) => {
             } else if (setting.key === 'server_endpoint') {
                 serverEndpoint = setting.value;
             } else if (setting.key === 'matrix_webhook_url') {
-                matrixWebhookUrl = setting.value;
+                // Decrypt the webhook URL before returning to admin
+                matrixWebhookUrl = safeDecrypt(setting.value);
             }
         }
 

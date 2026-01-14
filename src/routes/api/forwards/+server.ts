@@ -23,6 +23,13 @@ export const GET: RequestHandler = async () => {
     return json(allForwards);
 };
 
+/**
+ * Validates a port number is within valid range
+ */
+function isValidPort(port: unknown): port is number {
+    return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
 // POST /api/forwards - Create a new forward rule
 export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json();
@@ -36,6 +43,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (!['tcp', 'udp'].includes(body.protocol)) {
         return json({ error: 'protocol must be tcp or udp' }, { status: 400 });
+    }
+
+    if (!isValidPort(body.publicPort) || !isValidPort(body.privatePort)) {
+        return json({ error: 'Ports must be integers between 1 and 65535' }, { status: 400 });
     }
 
     try {

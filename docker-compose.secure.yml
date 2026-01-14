@@ -1,0 +1,74 @@
+# Hardened Docker Compose for PetalHop
+# Use: docker compose -f docker-compose.secure.yml up -d
+
+services:
+  petalhop:
+    image: ghcr.io/petalcat/petalhop:latest
+    build: .
+    container_name: petalhop-server
+    restart: unless-stopped
+
+    # Use host network for WireGuard (required for proper routing)
+    network_mode: host
+
+    # Minimal required capabilities
+    cap_add:
+      - NET_ADMIN      # Required for nftables and WireGuard
+      - NET_RAW        # Required for WireGuard
+    cap_drop:
+      - ALL            # Drop all other capabilities
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true    # Prevent privilege escalation
+      # - seccomp=seccomp-profile.json  # Uncomment if using custom seccomp
+
+    # Read-only root filesystem with specific writable mounts
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m    # Temp files (nftables config)
+      - /run:noexec,nosuid,size=8m     # Runtime files
+
+    volumes:
+      - ./data:/app/data:rw                    # SQLite database (read-write)
+      - ./wireguard:/etc/wireguard:rw          # WireGuard config (read-write)
+      - /dev/net/tun:/dev/net/tun              # TUN device for WireGuard
+
+    environment:
+      - DATABASE_URL=file:/app/data/local.db
+      - NODE_ENV=production
+      - ORIGIN=${ORIGIN:-https://your-domain.com}
+      - SERVER_ENDPOINT=${SERVER_ENDPOINT:-your-domain.com:51820}
+      # Security settings
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}       # Required: 64-char hex string
+      - INIT_TOKEN=${INIT_TOKEN}               # Required for first admin signup
+      - SECURE_COOKIES=true
+
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+
+    # Resource limits to prevent DoS
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Logging limits
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

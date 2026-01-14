@@ -4,6 +4,7 @@ import { db } from './db';
 import { sessions, users } from './db/schema';
 import { eq } from 'drizzle-orm';
 import type { RequestEvent } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 
 // Session expiry: 30 days
 const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
@@ -98,12 +99,24 @@ export async function setSessionMfaVerified(sessionId: string): Promise<void> {
 }
 
 /**
+ * Determine if we should use secure cookies (HTTPS only)
+ * In production, always use secure cookies
+ */
+function isSecureCookie(): boolean {
+    // Check if running in production or if explicitly set
+    const nodeEnv = env.NODE_ENV || 'development';
+    const forceSecure = env.SECURE_COOKIES === 'true';
+    return nodeEnv === 'production' || forceSecure;
+}
+
+/**
  * Set session cookie
  */
 export function setSessionTokenCookie(event: RequestEvent, token: string, expiresAt: Date): void {
     event.cookies.set('session', token, {
         httpOnly: true,
         sameSite: 'lax',
+        secure: isSecureCookie(),
         expires: expiresAt,
         path: '/'
     });
@@ -116,6 +129,7 @@ export function deleteSessionTokenCookie(event: RequestEvent): void {
     event.cookies.set('session', '', {
         httpOnly: true,
         sameSite: 'lax',
+        secure: isSecureCookie(),
         maxAge: 0,
         path: '/'
     });

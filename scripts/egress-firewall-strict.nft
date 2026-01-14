@@ -1,0 +1,129 @@
+#!/usr/sbin/nft -f
+# PetalHop STRICT Egress Firewall
+# Blocks ALL outbound except explicitly allowed
+#
+# IMPORTANT: Test thoroughly before deploying!
+# Run in a screen/tmux session so you can recover if locked out.
+#
+# Usage:
+#   nft -f egress-firewall-strict.nft
+#
+# To remove:
+#   nft delete table inet petalhop_egress
+
+table inet petalhop_egress {
+
+    # Whitelist of allowed outbound IPs (add your webhook server IPs here)
+    set allowed_outbound_ips {
+        type ipv4_addr
+        flags interval
+        elements = {
+            # DNS servers (Cloudflare, Google)
+            1.1.1.1, 1.0.0.1,
+            8.8.8.8, 8.8.4.4,
+            # Add your webhook server IPs here:
+            # 192.0.2.1,  # Example: Matrix server
+        }
+    }
+
+    # Whitelist of allowed outbound ports
+    set allowed_outbound_tcp_ports {
+        type inet_service
+        elements = {
+            53,    # DNS
+            443,   # HTTPS (webhooks)
+            80,    # HTTP (ACME/Let's Encrypt)
+        }
+    }
+
+    set allowed_outbound_udp_ports {
+        type inet_service
+        elements = {
+            53,    # DNS
+            123,   # NTP
+        }
+    }
+
+    chain output {
+        type filter hook output priority 0; policy drop;
+
+        # Always allow loopback
+        oif "lo" accept
+
+        # Allow established/related connections (responses)
+        ct state established,related accept
+
+        # Allow ICMP (ping, etc)
+        ip protocol icmp accept
+        ip6 nexthdr icmpv6 accept
+
+        # Allow traffic to WireGuard clients (10.8.0.0/24 range)
+        ip daddr 10.8.0.0/24 accept
+
+        # Allow outbound to whitelisted IPs
+        ip daddr @allowed_outbound_ips accept
+
+        # Allow whitelisted TCP ports
+        tcp dport @allowed_outbound_tcp_ports accept
+
+        # Allow whitelisted UDP ports
+        udp dport @allowed_outbound_udp_ports accept
+
+        # Log dropped packets (uncomment for debugging)
+        # log prefix "EGRESS_BLOCKED: " level warn
+
+        # Everything else is dropped by policy
+        counter comment "dropped outbound packets"
+    }
+
+    chain input {
+        type filter hook input priority 0; policy drop;
+
+        # Always allow loopback
+        iif "lo" accept
+
+        # Allow established/related
+        ct state established,related accept
+
+        # Drop invalid
+        ct state invalid drop
+
+        # Allow ICMP
+        ip protocol icmp accept
+        ip6 nexthdr icmpv6 accept
+
+        # Allow SSH (port 22 - adjust if needed)
+        tcp dport 22 accept
+
+        # Allow WireGuard (port 51820)
+        udp dport 51820 accept
+
+        # Allow HTTP/HTTPS (ports 80, 443)
+        tcp dport { 80, 443 } accept
+
+        # Allow from WireGuard clients
+        ip saddr 10.8.0.0/24 accept
+
+        # Log dropped packets (uncomment for debugging)
+        # log prefix "INGRESS_BLOCKED: " level warn
+
+        # Everything else dropped by policy
+        counter comment "dropped inbound packets"
+    }
+
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+
+        # Allow established/related
+        ct state established,related accept
+
+        # Allow WireGuard client traffic to be forwarded
+        ip saddr 10.8.0.0/24 accept
+        ip daddr 10.8.0.0/24 accept
+
+        # Log dropped packets
+        # log prefix "FORWARD_BLOCKED: " level warn
+
+        counter comment "dropped forwarded packets"
+    }
+}

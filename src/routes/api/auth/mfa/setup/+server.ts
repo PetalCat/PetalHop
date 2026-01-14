@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateTotpSecret, generateTotpUri } from '$lib/server/password';
+import { generateBackupCodes } from '$lib/server/mfaBackup';
 import QRCode from 'qrcode';
 
 // POST /api/auth/mfa/setup - Generate new TOTP secret
@@ -12,13 +13,18 @@ export const POST: RequestHandler = async (event) => {
         return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Generate new TOTP secret
+    // Generate new TOTP secret and backup codes
     const secret = generateTotpSecret();
+    const { plainCodes, hashedCodes } = generateBackupCodes();
 
-    // Store secret but don't enable MFA yet (user must verify first)
+    // Store secret and backup codes, but don't enable MFA yet (user must verify first)
     await db
         .update(users)
-        .set({ mfaSecret: secret, mfaEnabled: false })
+        .set({
+            mfaSecret: secret,
+            mfaBackupCodes: JSON.stringify(hashedCodes),
+            mfaEnabled: false
+        })
         .where(eq(users.id, event.locals.user.id));
 
     // Generate the TOTP URI for QR code
@@ -38,7 +44,8 @@ export const POST: RequestHandler = async (event) => {
         secret,
         uri,
         qrCode,
-        message: 'Scan the QR code with your authenticator app, then verify with a code'
+        backupCodes: plainCodes,
+        message: 'Scan the QR code with your authenticator app, then verify with a code. Save your backup codes securely - they will only be shown once!'
     });
 };
 
@@ -50,7 +57,7 @@ export const DELETE: RequestHandler = async (event) => {
 
     await db
         .update(users)
-        .set({ mfaSecret: null, mfaEnabled: false })
+        .set({ mfaSecret: null, mfaBackupCodes: null, mfaEnabled: false })
         .where(eq(users.id, event.locals.user.id));
 
     return json({ success: true, message: 'MFA disabled' });

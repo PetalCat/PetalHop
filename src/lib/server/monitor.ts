@@ -3,6 +3,7 @@ import { db } from '$lib/server/db';
 import { peers, appSettings, peerUsageHourly, peerUsageMonthly } from '$lib/server/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { EventEmitter } from 'events';
+import { safeDecrypt } from '$lib/server/crypto';
 
 // Types
 export interface PeerStats {
@@ -58,10 +59,10 @@ async function refreshConfig() {
         if (p.publicKey) peerMap.set(p.publicKey, { id: p.id, name: p.name });
     }
 
-    // 2. Refresh Settings (Webhook)
+    // 2. Refresh Settings (Webhook) - decrypt since it's stored encrypted
     const settings = await db.select().from(appSettings);
     const urlSetting = settings.find(s => s.key === 'matrix_webhook_url');
-    webhookUrl = urlSetting ? urlSetting.value : null;
+    webhookUrl = urlSetting ? safeDecrypt(urlSetting.value) : null;
 
     lastConfigUpdate = Date.now();
 }

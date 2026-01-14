@@ -9,6 +9,7 @@ import {
     generateSessionToken,
     setSessionTokenCookie
 } from '$lib/server/auth';
+import { logAudit } from '$lib/server/audit';
 
 export const POST: RequestHandler = async (event) => {
     const body = await event.request.json();
@@ -25,12 +26,25 @@ export const POST: RequestHandler = async (event) => {
         .limit(1);
 
     if (!user) {
+        await logAudit(event, {
+            action: 'user.login.failed',
+            details: { email: body.email, reason: 'user_not_found' },
+            success: false
+        });
         return json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
     // Verify password
     const validPassword = await verifyPassword(body.password, user.passwordHash);
     if (!validPassword) {
+        await logAudit(event, {
+            action: 'user.login.failed',
+            userId: user.id,
+            resourceType: 'user',
+            resourceId: user.id,
+            details: { reason: 'invalid_password' },
+            success: false
+        });
         return json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
@@ -41,12 +55,26 @@ export const POST: RequestHandler = async (event) => {
 
     // Check if MFA is required
     if (user.mfaEnabled) {
+        await logAudit(event, {
+            action: 'user.login',
+            userId: user.id,
+            resourceType: 'user',
+            resourceId: user.id,
+            details: { mfaPending: true }
+        });
         return json({
             success: true,
             mfaRequired: true,
             message: 'Please enter your MFA code'
         });
     }
+
+    await logAudit(event, {
+        action: 'user.login',
+        userId: user.id,
+        resourceType: 'user',
+        resourceId: user.id
+    });
 
     return json({
         success: true,

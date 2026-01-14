@@ -3,6 +3,8 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { appSettings } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
+import { encrypt } from '$lib/server/crypto';
+import { validateWebhookUrl } from '$lib/server/urlValidation';
 
 // POST /api/settings - Update app settings (admin only)
 export const POST: RequestHandler = async (event) => {
@@ -71,14 +73,22 @@ export const POST: RequestHandler = async (event) => {
             });
     }
 
-    // Update matrix_webhook_url
+    // Update matrix_webhook_url (encrypted at rest, with SSRF validation)
     if (typeof body.matrixWebhookUrl === 'string') {
+        // Validate webhook URL to prevent SSRF attacks
+        const validation = await validateWebhookUrl(body.matrixWebhookUrl);
+        if (!validation.valid) {
+            return json({ error: validation.error }, { status: 400 });
+        }
+
+        // Encrypt the webhook URL before storing
+        const encryptedUrl = body.matrixWebhookUrl ? encrypt(body.matrixWebhookUrl) : '';
         await db
             .insert(appSettings)
-            .values({ key: 'matrix_webhook_url', value: body.matrixWebhookUrl })
+            .values({ key: 'matrix_webhook_url', value: encryptedUrl })
             .onConflictDoUpdate({
                 target: appSettings.key,
-                set: { value: body.matrixWebhookUrl }
+                set: { value: encryptedUrl }
             });
     }
 

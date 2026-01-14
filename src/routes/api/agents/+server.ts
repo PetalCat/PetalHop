@@ -5,6 +5,7 @@ import { peers, appSettings } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { execSync } from 'child_process';
+import { logAudit } from '$lib/server/audit';
 
 // GET /api/agents - List all agents
 export const GET: RequestHandler = async (event) => {
@@ -49,10 +50,17 @@ export const POST: RequestHandler = async (event) => {
             return json({ error: 'No available IPs in 10.8.0.x range' }, { status: 500 });
         }
     } else {
-        // Validate provided IP
-        const ipRegex = /^10\.8\.\d{1,3}\.\d{1,3}$/;
-        if (!ipRegex.test(wgIp)) {
+        // Validate provided IP with proper octet range checking
+        const ipRegex = /^10\.8\.(\d{1,3})\.(\d{1,3})$/;
+        const match = wgIp.match(ipRegex);
+        if (!match) {
             return json({ error: 'Invalid WireGuard IP. Use 10.8.x.x' }, { status: 400 });
+        }
+        // Validate octets are in range 0-255
+        const octet3 = parseInt(match[1], 10);
+        const octet4 = parseInt(match[2], 10);
+        if (octet3 > 255 || octet4 > 255) {
+            return json({ error: 'Invalid IP address: octets must be 0-255' }, { status: 400 });
         }
     }
 
@@ -77,12 +85,19 @@ export const POST: RequestHandler = async (event) => {
         }
 
         try {
-            await db.insert(peers).values({
+            const [newDevice] = await db.insert(peers).values({
                 name: body.name,
                 wgIp,
                 publicKey,
                 status: 'active',
                 type: 'device'
+            }).returning();
+
+            await logAudit(event, {
+                action: 'agent.create',
+                resourceType: 'device',
+                resourceId: String(newDevice.id),
+                details: { name: body.name, wgIp, type: 'device' }
             });
 
             return json({
@@ -108,12 +123,19 @@ export const POST: RequestHandler = async (event) => {
     const setupToken = randomBytes(32).toString('hex');
 
     try {
-        await db.insert(peers).values({
+        const [newAgent] = await db.insert(peers).values({
             name: body.name,
             wgIp,
             setupToken,
             status: 'pending',
             type: 'agent'
+        }).returning();
+
+        await logAudit(event, {
+            action: 'agent.create',
+            resourceType: 'agent',
+            resourceId: String(newAgent.id),
+            details: { name: body.name, wgIp, type: 'agent' }
         });
 
         return json({ success: true, token: setupToken, wgIp, type: 'agent' });
@@ -138,6 +160,13 @@ export const DELETE: RequestHandler = async (event) => {
 
     try {
         await db.delete(peers).where(eq(peers.id, body.id));
+
+        await logAudit(event, {
+            action: 'agent.delete',
+            resourceType: 'agent',
+            resourceId: String(body.id)
+        });
+
         return json({ success: true });
     } catch (e) {
         return json({ error: 'Failed to delete agent' }, { status: 500 });

@@ -9,6 +9,8 @@ import {
     generateSessionToken,
     setSessionTokenCookie
 } from '$lib/server/auth';
+import { validatePasswordStrength } from '$lib/server/passwordPolicy';
+import { env } from '$env/dynamic/private';
 
 export const POST: RequestHandler = async (event) => {
     const body = await event.request.json();
@@ -23,14 +25,34 @@ export const POST: RequestHandler = async (event) => {
         return json({ error: 'Invalid email format' }, { status: 400 });
     }
 
-    // Validate password strength
-    if (body.password.length < 8) {
-        return json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+    // Validate password strength with comprehensive policy
+    const passwordValidation = validatePasswordStrength(body.password);
+    if (!passwordValidation.valid) {
+        return json({
+            error: 'Password does not meet requirements',
+            details: passwordValidation.errors
+        }, { status: 400 });
     }
 
     // Check if this is the first user (will be admin)
     const [userCount] = await db.select({ count: count() }).from(users);
     const isFirstUser = userCount.count === 0;
+
+    // If first user, require INIT_TOKEN for security
+    // This prevents attackers from racing to create the admin account
+    if (isFirstUser) {
+        const initToken = env.INIT_TOKEN;
+        if (initToken && initToken.length > 0) {
+            // INIT_TOKEN is set, require it for first signup
+            if (body.initToken !== initToken) {
+                return json({
+                    error: 'Initial setup token required for first user registration',
+                    requiresInitToken: true
+                }, { status: 403 });
+            }
+        }
+        // If INIT_TOKEN is not set, allow first signup (dev mode)
+    }
 
     // If not first user, check if signups are enabled
     if (!isFirstUser) {
