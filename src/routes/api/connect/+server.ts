@@ -75,9 +75,12 @@ export const POST: RequestHandler = async (event) => {
         success: true,
         agent_id: String(agent.id),
         wgIp: agent.wgIp,
+        wg_ip: agent.wgIp, // Alias for Rust agent
         // In a real scenario, we might return the server's public key here too if stored in settings
         serverPublicKey,
+        server_public_key: serverPublicKey, // Alias for Rust agent
         serverEndpoint,
+        server_endpoint: serverEndpoint, // Alias for Rust agent
         forwards: agentForwards.map(f => ({
             protocol: f.protocol,
             port: f.publicPort,

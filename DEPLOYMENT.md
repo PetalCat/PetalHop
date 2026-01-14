@@ -120,4 +120,10 @@ docker run -d \
   ghcr.io/petalcat/petalhop-agent:latest
 ```
 
+> [!IMPORTANT]
+> **Environment Variables**:
+> *   `CONTROLLER_URL`: Must point to your **public** controller domain (e.g. `https://hop.yourdomain.com`), **NOT** localhost.
+> *   `TOKEN`: The invite token from the dashboard.
+
+
 **Note for VPS/Cloud configs**: If utilizing `--net=host` isn't possible or preferred, standard bridge networking works for the agent, but port forwarding *from* the public internet to the agent via PetalHop requires the agent to be able to route traffic. Host networking is recommended for performance and simplicity.
