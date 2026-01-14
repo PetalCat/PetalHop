@@ -3,7 +3,7 @@ ENV CI=true
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN apk add --no-cache python3 make g++
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+RUN npm install -g pnpm && pnpm install --frozen-lockfile && pnpm rebuild better-sqlite3
 COPY . .
 RUN pnpm build
 RUN pnpm prune --prod
