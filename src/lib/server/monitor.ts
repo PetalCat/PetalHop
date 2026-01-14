@@ -14,7 +14,16 @@ export interface PeerStats {
 }
 
 export const statsEmitter = new EventEmitter();
-let monitorInterval: NodeJS.Timeout | null = null;
+const MONITOR_KEY = Symbol.for('petalhop.monitor');
+
+// Types helper for global to avoid TS errors
+function getGlobalMonitor(): NodeJS.Timeout | undefined {
+    return (globalThis as any)[MONITOR_KEY];
+}
+
+function setGlobalMonitor(val: NodeJS.Timeout | undefined) {
+    (globalThis as any)[MONITOR_KEY] = val;
+}
 
 // State
 let peerMap = new Map<string, { id: number, name: string }>(); // PublicKey -> { ID, Name }
@@ -35,20 +44,26 @@ const OFFLINE_THRESHOLD_SEC = 180; // 3 minutes
 const FLUSH_INTERVAL_MS = 60000; // 1 minute
 
 export function startMonitoring() {
-    if (monitorInterval) return; // Already running
+    const existing = getGlobalMonitor();
+    if (existing) {
+        console.log('Stopping previous WireGuard Monitor...');
+        clearInterval(existing);
+    }
 
     console.log('Starting WireGuard Monitor...');
 
     // Initial config load
     refreshConfig().catch(console.error);
 
-    monitorInterval = setInterval(async () => {
+    const interval = setInterval(async () => {
         try {
             await tick();
         } catch (e) {
             console.error('Monitor tick failed:', e);
         }
     }, 1000);
+
+    setGlobalMonitor(interval);
 }
 
 async function refreshConfig() {
