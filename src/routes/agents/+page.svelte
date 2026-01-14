@@ -199,6 +199,82 @@ PersistentKeepalive = 25`;
 		a.click();
 		URL.revokeObjectURL(url);
 	}
+	// Port Forwarding Modal
+	let showPortsModal = $state(false);
+	let selectedPeerId = $state<number | null>(null);
+	let peerForwards = $state<any[]>([]);
+
+	// New Forward Form
+	let newForwardPublicPort = $state('');
+	let newForwardPrivatePort = $state('');
+	let newForwardProtocol = $state<'tcp' | 'udp'>('tcp');
+	let forwardSubmitting = $state(false);
+
+	async function openPortsModal(peerId: number) {
+		selectedPeerId = peerId;
+		await loadForwards(peerId);
+		showPortsModal = true;
+	}
+
+	async function loadForwards(peerId: number) {
+		try {
+			// API returns all forwards, filter client side for now or update API?
+			// API /api/forwards returns ALL. Filtering client side is fine for small scale.
+			const res = await fetch('/api/forwards');
+			if (res.ok) {
+				const all = await res.json();
+				peerForwards = all.filter((f: any) => f.peerId === peerId);
+			}
+		} catch (e) {
+			console.error('Failed to load forwards', e);
+		}
+	}
+
+	async function addForward() {
+		if (!selectedPeerId || !newForwardPublicPort || !newForwardPrivatePort) return;
+		forwardSubmitting = true;
+		try {
+			const res = await fetch('/api/forwards', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					peerId: selectedPeerId,
+					protocol: newForwardProtocol,
+					publicPort: parseInt(newForwardPublicPort),
+					privatePort: parseInt(newForwardPrivatePort)
+				})
+			});
+			if (res.ok) {
+				newForwardPublicPort = '';
+				newForwardPrivatePort = '';
+				await loadForwards(selectedPeerId);
+				showToast('Port forward added', 'success');
+			} else {
+				const d = await res.json();
+				showToast(d.error || 'Failed to add forward', 'error');
+			}
+		} catch (e) {
+			showToast('Failed to add forward', 'error');
+		}
+		forwardSubmitting = false;
+	}
+
+	async function deleteForward(id: number) {
+		if (!confirm('Delete this rule?')) return;
+		try {
+			const res = await fetch('/api/forwards', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ id })
+			});
+			if (res.ok) {
+				if (selectedPeerId) await loadForwards(selectedPeerId);
+				showToast('Rule deleted', 'success');
+			}
+		} catch (e) {
+			showToast('Failed to delete rule', 'error');
+		}
+	}
 </script>
 
 <svelte:head>
@@ -297,9 +373,17 @@ PersistentKeepalive = 25`;
 									{/if}
 								</td>
 								<td>
-									<button class="btn btn-danger btn-sm" onclick={() => deleteAgent(agent.id)}>
-										Delete
-									</button>
+									<div class="flex gap-2">
+										<button
+											class="btn btn-secondary btn-sm"
+											onclick={() => openPortsModal(agent.id)}
+										>
+											Ports
+										</button>
+										<button class="btn btn-danger btn-sm" onclick={() => deleteAgent(agent.id)}>
+											Delete
+										</button>
+									</div>
 								</td>
 							</tr>
 						{/each}
@@ -423,6 +507,92 @@ PersistentKeepalive = 25`;
 
 			<div class="modal-actions">
 				<button class="btn btn-primary" onclick={() => (showDeviceModal = false)}> Done </button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Ports Modal -->
+{#if showPortsModal}
+	<div
+		class="modal-overlay"
+		role="presentation"
+		tabindex="-1"
+		onclick={() => (showPortsModal = false)}
+		onkeydown={(e) => e.key === 'Escape' && (showPortsModal = false)}
+	>
+		<div
+			class="modal"
+			role="dialog"
+			tabindex="0"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+		>
+			<h3 class="modal-title">Port Forwarding Rules</h3>
+			<p class="modal-message">
+				Map public ports on this controller to private ports on the agent.
+			</p>
+
+			<div class="table-container mb-4">
+				<table>
+					<thead>
+						<tr>
+							<th>Protocol</th>
+							<th>Public Port</th>
+							<th>➜</th>
+							<th>Private Port</th>
+							<th>Action</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each peerForwards as fw}
+							<tr>
+								<td class="uppercase">{fw.protocol}</td>
+								<td>{fw.publicPort}</td>
+								<td>➜</td>
+								<td>{fw.privatePort}</td>
+								<td>
+									<button class="btn btn-danger btn-sm" onclick={() => deleteForward(fw.id)}>
+										×
+									</button>
+								</td>
+							</tr>
+						{/each}
+						{#if peerForwards.length === 0}
+							<tr>
+								<td colspan="5" class="text-muted text-center">No rules configured.</td>
+							</tr>
+						{/if}
+					</tbody>
+				</table>
+			</div>
+
+			<div class="border-border mt-4 border-t pt-4">
+				<h4 class="mb-2 text-sm font-medium">Add Rule</h4>
+				<div class="flex items-end gap-2">
+					<div class="form-group w-24">
+						<label class="text-xs" for="proto">Protocol</label>
+						<select id="proto" bind:value={newForwardProtocol} class="rounded border p-2">
+							<option value="tcp">TCP</option>
+							<option value="udp">UDP</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label class="text-xs" for="pub">Public</label>
+						<input id="pub" type="number" placeholder="25565" bind:value={newForwardPublicPort} />
+					</div>
+					<div class="form-group">
+						<label class="text-xs" for="priv">Private</label>
+						<input id="priv" type="number" placeholder="25565" bind:value={newForwardPrivatePort} />
+					</div>
+					<button class="btn btn-primary" onclick={addForward} disabled={forwardSubmitting}>
+						{forwardSubmitting ? '...' : 'Add'}
+					</button>
+				</div>
+			</div>
+
+			<div class="modal-actions mt-4">
+				<button class="btn btn-secondary" onclick={() => (showPortsModal = false)}> Close </button>
 			</div>
 		</div>
 	</div>
@@ -612,5 +782,9 @@ PersistentKeepalive = 25`;
 
 	.config-preview pre {
 		margin: 0;
+	}
+
+	.uppercase {
+		text-transform: uppercase;
 	}
 </style>

@@ -37,9 +37,10 @@ services:
     image: ghcr.io/petalcat/petalhop:latest
     container_name: petalhop-server
     restart: unless-stopped
-    ports:
-      - "3000:3000"       # Web UI
-      - "51820:51820/udp" # WireGuard VPN
+    network_mode: host      # Required for port forwarding
+    # ports: - Not needed in host mode
+    #   - "3000:3000"       
+    #   - "51820:51820/udp"
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -54,9 +55,9 @@ services:
       - SERVER_ENDPOINT=YOUR_VPS_IP:51820
       - DATABASE_URL=file:/app/data/prod.db
       - BODY_SIZE_LIMIT=512M
-    sysctls:
-      - net.ipv4.ip_forward=1
-      - net.ipv4.conf.all.src_valid_mark=1
+    # sysctls: - Not allowed in host mode (enable ip_forward on host instead)
+    #   - net.ipv4.ip_forward=1
+    #   - net.ipv4.conf.all.src_valid_mark=1
 ```
 
 Start the service:
@@ -85,13 +86,14 @@ If you prefer `docker run` over `docker-compose`:
 docker run -d \
   --name petalhop-server \
   --restart unless-stopped \
-  -p 3000:3000 \
-  -p 51820:51820/udp \
+  --net=host \
+  # -p 3000:3000 \ # Not needed with --net=host
+  # -p 51820:51820/udp \
   --cap-add=NET_ADMIN \
   --cap-add=NET_RAW \
   --cap-add=SYS_MODULE \
-  --sysctl net.ipv4.ip_forward=1 \
-  --sysctl net.ipv4.conf.all.src_valid_mark=1 \
+  # --sysctl net.ipv4.ip_forward=1 \ # Enable on host: sysctl -w net.ipv4.ip_forward=1
+  # --sysctl net.ipv4.conf.all.src_valid_mark=1 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/wireguard:/etc/wireguard \
   -e ORIGIN="https://hop.yourdomain.com" \
