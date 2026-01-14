@@ -2,6 +2,7 @@ FROM node:22-alpine AS builder
 ENV CI=true
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
+RUN apk add --no-cache python3 make g++
 RUN npm install -g pnpm && pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
