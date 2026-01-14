@@ -1,6 +1,6 @@
 {
     "name": "petalhop-agent",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "PetalHop Agent Control Plane",
     "main": "index.js",
     "dependencies": {},
