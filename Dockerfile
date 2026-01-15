@@ -6,7 +6,7 @@ RUN apk add --no-cache python3 make g++
 RUN npm install -g pnpm && pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
-RUN pnpm prune --prod && pnpm rebuild better-sqlite3
+RUN rm -rf node_modules && pnpm install --prod --frozen-lockfile
 
 FROM node:22-alpine
 WORKDIR /app
