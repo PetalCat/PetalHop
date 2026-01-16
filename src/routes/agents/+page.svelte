@@ -257,7 +257,14 @@ PersistentKeepalive = 25`;
 	}
 
 	function getSetupCommand(token: string) {
-		return `docker run -d --restart=unless-stopped --name=petalhop-agent --cap-add=NET_ADMIN -p 51820:51820/udp -e TOKEN=${token} -e CONTROLLER_URL=${controllerUrl} ghcr.io/petalcat/petalhop-agent:latest\n# Note: Add -p <host>:<container> for any forwarded ports`;
+		return `docker run -d \\
+  --name petalhop-agent \\
+  --restart unless-stopped \\
+  --network host \\
+  --cap-add=NET_ADMIN \\
+  -e TOKEN="${token}" \\
+  -e CONTROLLER_URL="${controllerUrl}" \\
+  ghcr.io/petalcat/petalhop-agent:latest`;
 	}
 
 	async function copyCommand() {
@@ -556,7 +563,7 @@ PersistentKeepalive = 25`;
 		>
 			<h3 class="modal-title">Agent Setup</h3>
 			<p class="modal-message">
-				Run this command on your agent (VPS/Server) to auto-configure WireGuard:
+				Run this command on your <strong>Linux</strong> agent (VPS/Server) to auto-configure WireGuard:
 			</p>
 
 			<div class="command-box">

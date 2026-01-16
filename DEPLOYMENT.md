@@ -120,15 +120,16 @@ On the remote machines you want to manage (the "Hosts"):
 2.  **Generate an Invite Token** from the PetalHop Dashboard -> Agents -> Add Agent.
 3.  **Run the Installer Command** provided by the dashboard.
 
-Alternatively, manually run the agent container:
+### Linux Deployment (Required)
 
-```bash
+PetalHop Agents **must** be deployed on a Linux host to support proper ingress traffic routing. Other operating systems (macOS, Windows) are **not supported** as they lack the necessary network namespace capabilities for host networking.
+
 ```bash
 docker run -d \
   --name petalhop-agent \
   --restart unless-stopped \
+  --network host \
   --cap-add=NET_ADMIN \
-  -p 51820:51820/udp \
   -e TOKEN="YOUR_INVITE_TOKEN" \
   -e CONTROLLER_URL="https://hop.yourdomain.com" \
   ghcr.io/petalcat/petalhop-agent:latest
@@ -138,6 +139,3 @@ docker run -d \
 > **Environment Variables**:
 > *   `CONTROLLER_URL`: Must point to your **public** controller domain (e.g. `https://hop.yourdomain.com`), **NOT** localhost.
 > *   `TOKEN`: The invite token from the dashboard.
-
-
-**Note for VPS/Cloud configs**: If utilizing `--net=host` isn't possible or preferred, standard bridge networking works for the agent, but port forwarding *from* the public internet to the agent via PetalHop requires the agent to be able to route traffic. Host networking is recommended for performance and simplicity.
