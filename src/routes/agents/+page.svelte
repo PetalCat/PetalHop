@@ -7,7 +7,7 @@
 	import { showConfirm, showToast } from '$lib/components/Notifications.svelte';
 	import QRCode from 'qrcode';
 
-	let { data } = $props();
+	let { data }: { data: PageData } = $props();
 	let { peers: initialPeers } = data;
 
 	let peers = $state(initialPeers);
@@ -257,14 +257,7 @@ PersistentKeepalive = 25`;
 	}
 
 	function getSetupCommand(token: string) {
-		return `docker run -d \\
-  --name petalhop-agent \\
-  --restart unless-stopped \\
-  --network host \\
-  --cap-add=NET_ADMIN \\
-  -e TOKEN="${token}" \\
-  -e CONTROLLER_URL="${controllerUrl}" \\
-  ghcr.io/petalcat/petalhop-agent:latest`;
+		return `docker run -d --name petalhop-agent --restart unless-stopped --network host --cap-add=NET_ADMIN -e TOKEN="${token}" -e CONTROLLER_URL="${controllerUrl}" ghcr.io/petalcat/petalhop-agent:latest`;
 	}
 
 	async function copyCommand() {
